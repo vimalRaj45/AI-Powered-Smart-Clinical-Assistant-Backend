@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { whatsAppService, SendPrescriptionPayload } from '../services/whatsapp-service';
+import { whatsAppService, SendPrescriptionPayload } from '../services/whatsapp-service.js';
 
 export const whatsAppRoutes: FastifyPluginAsync = async (fastify) => {
   // Check WhatsApp connection status & get live QR code

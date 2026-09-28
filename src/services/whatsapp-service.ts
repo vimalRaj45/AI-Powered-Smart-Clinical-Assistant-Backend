@@ -1,10 +1,12 @@
-import makeWASocket, {
+import baileysPackage, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   WASocket,
 } from '@whiskeysockets/baileys';
+
+const makeWASocket: any = (baileysPackage as any).default || baileysPackage;
 import pino from 'pino';
 import QRCode from 'qrcode';
 import path from 'path';
@@ -80,9 +82,10 @@ class WhatsAppService {
         browser: ['Dr. Priya Clinical Studio', 'Chrome', '1.0.0'],
       });
 
-      this.sock.ev.on('creds.update', saveCreds);
+      if (this.sock) {
+        this.sock.ev.on('creds.update', saveCreds);
 
-      this.sock.ev.on('connection.update', async (update) => {
+        this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -128,6 +131,7 @@ class WhatsAppService {
           console.log(`[Baileys Gateway] ✅ WhatsApp Connected Successfully! Logged in as: ${this.connectedUser}`);
         }
       });
+    }
     } catch (err) {
       console.error('[Baileys Gateway] Connection init error:', err);
       this.isConnecting = false;
