@@ -67,13 +67,25 @@ class WhatsAppService {
     try {
       console.log('[Baileys Gateway] Initializing WhatsApp multi-device connection...');
       const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
-      const { version, isLatest } = await fetchLatestBaileysVersion();
+      
+      let version: [number, number, number] = [2, 3000, 1015901307];
+      let isLatest = false;
+      try {
+        const vInfo = await fetchLatestBaileysVersion();
+        version = vInfo.version as [number, number, number];
+        isLatest = vInfo.isLatest;
+      } catch (verErr) {
+        console.warn('[Baileys Gateway] Could not fetch latest WA version, using fallback:', verErr);
+      }
       console.log(`[Baileys Gateway] Using WA v${version.join('.')}, isLatest: ${isLatest}`);
 
       this.sock = makeWASocket({
         version,
         logger: this.logger,
         printQRInTerminal: true,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000,
         auth: {
           creds: state.creds,
           keys: makeCacheableSignalKeyStore(state.keys, this.logger),

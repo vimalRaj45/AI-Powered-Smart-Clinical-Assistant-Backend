@@ -10,6 +10,9 @@ export const whatsAppRoutes: FastifyPluginAsync = async (fastify) => {
   // Get live QR Code data URL
   fastify.get('/qr', async (_request, reply) => {
     const status = whatsAppService.getStatus();
+    if (!status.connected && !status.qrDataUrl) {
+      whatsAppService.initBaileys().catch(() => {});
+    }
     return reply.send({
       connected: status.connected,
       qrDataUrl: status.qrDataUrl,
