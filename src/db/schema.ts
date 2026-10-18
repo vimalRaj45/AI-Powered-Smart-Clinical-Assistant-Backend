@@ -81,8 +81,26 @@ export const consultations = pgTable('consultations', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const patientReports = pgTable('patient_reports', {
+  id: serial('id').primaryKey(),
+  patientId: integer('patient_id').references(() => patients.id, { onDelete: 'cascade' }),
+  patientMrn: varchar('patient_mrn', { length: 50 }).notNull(),
+  title: varchar('title', { length: 255 }).notNull(),
+  category: varchar('category', { length: 100 }).notNull(),
+  reportDate: varchar('report_date', { length: 50 }).notNull(),
+  facilityName: varchar('facility_name', { length: 255 }).notNull(),
+  doctorRemarks: text('doctor_remarks'),
+  findingsSummary: text('findings_summary'),
+  fileType: varchar('file_type', { length: 20 }).notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  fileData: text('file_data'), // Base64 data / Blob stored in Neon PostgreSQL
+  fileSizeBytes: integer('file_size_bytes').default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const patientsRelations = relations(patients, ({ many }) => ({
   consultations: many(consultations),
+  reports: many(patientReports),
 }));
 
 export const consultationsRelations = relations(consultations, ({ one }) => ({
@@ -92,7 +110,16 @@ export const consultationsRelations = relations(consultations, ({ one }) => ({
   }),
 }));
 
+export const patientReportsRelations = relations(patientReports, ({ one }) => ({
+  patient: one(patients, {
+    fields: [patientReports.patientId],
+    references: [patients.id],
+  }),
+}));
+
 export type Patient = typeof patients.$inferSelect;
 export type NewPatient = typeof patients.$inferInsert;
 export type Consultation = typeof consultations.$inferSelect;
 export type NewConsultation = typeof consultations.$inferInsert;
+export type PatientReportRecord = typeof patientReports.$inferSelect;
+export type NewPatientReportRecord = typeof patientReports.$inferInsert;

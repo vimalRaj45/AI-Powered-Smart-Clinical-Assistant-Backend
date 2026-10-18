@@ -3,6 +3,9 @@ import baileysPackage, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  isJidBroadcast,
+  isJidGroup,
+  isJidNewsletter,
   WASocket,
 } from '@whiskeysockets/baileys';
 
@@ -82,7 +85,9 @@ class WhatsAppService {
       this.sock = makeWASocket({
         version,
         logger: this.logger,
-        printQRInTerminal: true,
+        printQRInTerminal: false,
+        syncFullHistory: false, // Prevent loading ancient message history which causes Bad MAC decryption errors
+        markOnlineOnConnect: false,
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 25000,
@@ -92,58 +97,69 @@ class WhatsAppService {
         },
         generateHighQualityLinkPreview: true,
         browser: ['Dr. Priya Clinical Studio', 'Chrome', '1.0.0'],
+        shouldIgnoreJid: (jid: string) => {
+          if (!jid) return true;
+          return (
+            isJidBroadcast?.(jid) ||
+            isJidGroup?.(jid) ||
+            (isJidNewsletter && isJidNewsletter(jid)) ||
+            jid.endsWith('@newsletter') ||
+            jid.endsWith('@broadcast')
+          );
+        },
+        getMessage: async () => undefined,
       });
 
       if (this.sock) {
         this.sock.ev.on('creds.update', saveCreds);
 
         this.sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect, qr } = update;
+          const { connection, lastDisconnect, qr } = update;
 
-        if (qr) {
-          this.qrCodeRaw = qr;
-          try {
-            this.qrCodeDataUrl = await QRCode.toDataURL(qr, {
-              margin: 2,
-              width: 300,
-              color: {
-                dark: '#034b75',
-                light: '#ffffff',
-              },
-            });
-            console.log('[Baileys Gateway] New QR Code generated for WhatsApp connection.');
-          } catch (err) {
-            console.error('[Baileys Gateway] QR Generation error:', err);
+          if (qr) {
+            this.qrCodeRaw = qr;
+            try {
+              this.qrCodeDataUrl = await QRCode.toDataURL(qr, {
+                margin: 2,
+                width: 300,
+                color: {
+                  dark: '#034b75',
+                  light: '#ffffff',
+                },
+              });
+              console.log('[Baileys Gateway] New QR Code generated for WhatsApp connection.');
+            } catch (err) {
+              console.error('[Baileys Gateway] QR Generation error:', err);
+            }
           }
-        }
 
-        if (connection === 'close') {
-          const shouldReconnect =
-            (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-          console.log(
-            `[Baileys Gateway] Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`
-          );
-          this.isConnected = false;
-          this.connectedUser = null;
-          this.isConnecting = false;
+          if (connection === 'close') {
+            const shouldReconnect =
+              (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log(
+              `[Baileys Gateway] Connection closed due to ${lastDisconnect?.error}, reconnecting: ${shouldReconnect}`
+            );
+            this.isConnected = false;
+            this.connectedUser = null;
+            this.isConnecting = false;
 
-          if (shouldReconnect) {
-            setTimeout(() => this.initBaileys(), 3000);
-          } else {
-            // Clean auth state on log out
-            this.clearAuthState();
-            setTimeout(() => this.initBaileys(), 2000);
+            if (shouldReconnect) {
+              setTimeout(() => this.initBaileys(), 3000);
+            } else {
+              // Clean auth state on log out
+              this.clearAuthState();
+              setTimeout(() => this.initBaileys(), 2000);
+            }
+          } else if (connection === 'open') {
+            this.isConnected = true;
+            this.isConnecting = false;
+            this.qrCodeDataUrl = null;
+            this.qrCodeRaw = null;
+            this.connectedUser = this.sock?.user?.id || 'Connected Doctor Device';
+            console.log(`[Baileys Gateway] ✅ WhatsApp Connected Successfully! Logged in as: ${this.connectedUser}`);
           }
-        } else if (connection === 'open') {
-          this.isConnected = true;
-          this.isConnecting = false;
-          this.qrCodeDataUrl = null;
-          this.qrCodeRaw = null;
-          this.connectedUser = this.sock?.user?.id || 'Connected Doctor Device';
-          console.log(`[Baileys Gateway] ✅ WhatsApp Connected Successfully! Logged in as: ${this.connectedUser}`);
-        }
-      });
-    }
+        });
+      }
     } catch (err) {
       console.error('[Baileys Gateway] Connection init error:', err);
       this.isConnecting = false;
@@ -160,6 +176,7 @@ class WhatsAppService {
       this.connectedUser = null;
       this.qrCodeDataUrl = null;
       this.qrCodeRaw = null;
+      console.log('[Baileys Gateway] Auth directory cleared.');
     } catch (err) {
       console.error('[Baileys Gateway] Error clearing auth state:', err);
     }
@@ -190,9 +207,13 @@ class WhatsAppService {
 
   public cleanPhoneNumber(phone: string): string {
     let cleaned = phone.replace(/[^0-9]/g, '');
+    // If 10 digits without country code, default to Indian (+91) if starts with 6,7,8,9 else US (+1)
     if (cleaned.length === 10) {
-      // Default to standard prefix
-      cleaned = '1' + cleaned;
+      if (/^[6-9]/.test(cleaned)) {
+        cleaned = '91' + cleaned;
+      } else {
+        cleaned = '1' + cleaned;
+      }
     }
     return cleaned;
   }
@@ -237,12 +258,12 @@ class WhatsAppService {
 
     if (payload.total !== undefined) {
       msg += `\n💳 *BILLING SUMMARY:*\n`;
-      msg += `Total Amount: $${payload.total.toFixed(2)} (Insurance Claim Ready)\n`;
+      msg += `Total Amount: ₹${payload.total.toFixed(2)} (Tax Invoice Attached)\n`;
     }
 
     msg += `\n━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📄 *Digital Prescription Document Generated*\n`;
-    msg += `Clinic Emergency Helpline: +1 (800) 555-PRIYA\n`;
+    msg += `Clinic Emergency Helpline: 108 / 112\n`;
     msg += `_Thank you for trusting Priya Healthcare. Wishing you good health!_`;
 
     return msg;

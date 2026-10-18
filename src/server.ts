@@ -7,6 +7,7 @@ import { patients, consultations } from './db/schema.js';
 import { patientRoutes } from './routes/patient.routes.js';
 import { consultationRoutes } from './routes/consultation.routes.js';
 import { whatsAppRoutes } from './routes/whatsapp.routes.js';
+import { reportRoutes } from './routes/report.routes.js';
 
 const fastify = Fastify({
   logger: true,
@@ -53,6 +54,23 @@ async function initDatabase() {
         approved_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS patient_reports (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
+        patient_mrn VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        report_date VARCHAR(50) NOT NULL,
+        facility_name VARCHAR(255) NOT NULL,
+        doctor_remarks TEXT,
+        findings_summary TEXT,
+        file_type VARCHAR(20) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_data TEXT,
+        file_size_bytes INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
       );
     `);
     client.release();
@@ -135,6 +153,7 @@ async function bootstrap() {
     await fastify.register(patientRoutes, { prefix: '/api/patients' });
     await fastify.register(consultationRoutes, { prefix: '/api/consultations' });
     await fastify.register(whatsAppRoutes, { prefix: '/api/whatsapp' });
+    await fastify.register(reportRoutes, { prefix: '/api/reports' });
 
     // Init DB & tables
     await initDatabase();
